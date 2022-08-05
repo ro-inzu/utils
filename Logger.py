@@ -1,62 +1,54 @@
-import datetime
+from datetime import datetime
 import logging
 import os
-from datetime import datetime
-from configs import AppConfig, EnvironmentConfig
 
-stm = datetime.now().strftime('%H:%M:%S.%f')[:-3]
+STM = datetime.now().strftime('%H:%M:%S.%f')[:-3]
 
-
-class TimeFilter(logging.Filter):
-    def filter(self, record):
-        global stm
-        record.relative = stm
-        stm = datetime.now().strftime('%H:%M:%S.%f')[:-3]
-        return True
-
-
-app_con = AppConfig()
-env_conf = EnvironmentConfig()
-log_path = os.path.join(app_con.get_log_path())
-root_output = env_conf.root_output_path()
-
+FMT = '[%(asctime)s]  %(name)s  %(levelname)s  %(funcName)s:%(lineno)d  %(message)s'
+FORMATTER = logging.Formatter(FMT, datefmt='%H:%M:%S')
 
 class Logger(object):
 
-    def __init__(self, mod_name, log_fname, state="", county=""):
-        self.date_fmt = "{:%m-%d-%Y}".format(datetime.now())
-        # setup filename info
-        self.log_name = f"{self.date_fmt}_{log_fname}.log"
+    def __init__(self, mod_name, log_fname,options = ""):
         self.mod_name = mod_name
-        if state and county:
-            self.file_name = f"{state}_{county}_{self.log_name}"
-        else:
-            self.file_name = f"{self.date_fmt}_{self.log_name}.log"
-        # sends logging output to disk file
-        self.file_handler = logging.FileHandler(os.path.join(env_conf.log_output_path(), self.file_name), mode='w')
-        # sends logging output to streams (STDOUT and STDERR)
-        self.stream_handler = logging.StreamHandler()
+        # list of options entered from user [example_file.py -d]
+        self.options = options
+        self.log_fname = log_fname
         self.logger = logging.getLogger(self.mod_name)
 
-    def get_logger(self):
-        self.setup_logger()
-        return self.logger
+    # writes to stream/console
+    def get_stream_handler(self):  
+        stream_handler = logging.StreamHandler()
+        stream_handler.setLevel(logging.DEBUG)
+        stream_handler.setFormatter(CustomFormatter(FMT))
+        return stream_handler
+
+
+    # writes to disk
+    def get_file_handler(self):
+        # log name date format
+        file_date_fmt = "{:%m-%d-%Y}".format(datetime.now())
+        # name of log file
+        file_name = f"{file_date_fmt}_{self.log_fname}.log"
+        # path where log file is written to disk
+        file_out = "~/"
+
+        file_handler = logging.FileHandler(os.path.join(file_out, file_name), mode='w')
+        file_handler.setFormatter(FORMATTER)
+        return file_handler
+
 
     def setup_logger(self):
-        # add log format
-        fmt = app_con.get_log_fmt()
-        formatter = logging.Formatter(fmt, datefmt='%H:%M:%S')
-        # set formatting to file and stream handler(s)
-        self.file_handler.setFormatter(formatter)
-        self.stream_handler.setFormatter(formatter)
-        # add handlers to log obj
-        self.logger.addHandler(self.file_handler)
-        self.logger.addHandler(self.stream_handler)
-        # set logging levels to log obj
-        self.logger.setLevel(logging.INFO)
         self.logger.setLevel(logging.DEBUG)
-        for handle in self.logger.handlers:
-            handle.addFilter(TimeFilter())
+        # add handlers to log obj
+        self.logger.addHandler(self.get_stream_handler())
+        # looks through all optional args entered from user 
+        for option in self.options:
+            # write to disk if option in sys.args from file invoking the logger
+            if option in ["-d","-D","-Disk","-disk"]:
+                print(f"File handler added to logger..")
+                self.logger.addHandler(self.get_file_handler())
+
         return self.logger
 
     def reset_logger(self):
@@ -76,17 +68,32 @@ class Logger(object):
             self.logger.removeHandler(handler)
 
 
-# listener_log_obj = Logger("listener", "jobs")
-# log = listener_log_obj.setup_logger()
-# counter = 50
-# dict_state = {"KY": "Woodford", "AL": "AL_county", "CA": "ORange"}
-# while counter > 0:
-#     log.info("looking for a job")
-#     for state, county in dict_state.items():
-#         state_obj_logger = Logger("semantic", f"{state}_{county}---test", state, county)
-#         logger_sate = state_obj_logger.setup_logger()
-#         logger_sate.info("logging : {}".format(state))
-#         state_obj_logger.reset_logger()
-#         del state_obj_logger
-#     counter = -1
-#     log.info("processed a job")
+class CustomFormatter(logging.Formatter):
+
+    grey = '\x1b[38;21m'
+    blue = '\x1b[38;5;39m'
+    yellow = '\x1b[38;5;226m'
+    red = '\x1b[38;5;196m'
+    bold_red = '\x1b[31;1m'
+    reset = '\x1b[0m'
+
+    def __init__(self, fmt):
+        super().__init__()
+        self.fmt = fmt
+        self.FORMATS = {
+            logging.DEBUG: self.grey + self.fmt + self.reset,
+            logging.INFO: self.blue + self.fmt + self.reset,
+            logging.WARNING: self.yellow + self.fmt + self.reset,
+            logging.ERROR: self.red + self.fmt + self.reset,
+            logging.CRITICAL: self.bold_red + self.fmt + self.reset
+        }
+
+    def format(self, record):
+        log_fmt = self.FORMATS.get(record.levelno)
+        formatter = logging.Formatter(log_fmt)
+        return formatter.format(record)
+
+
+log_obj = Logger("app","app")
+log = log_obj.setup_logger()
+log.info("eatea")
