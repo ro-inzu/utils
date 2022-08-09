@@ -31,9 +31,7 @@ class AppConfig(ConfigUtility):
     def __init__(self):
         super().__init__()
         self.config_file_path = os.path.join(self.root_dir, "app.properties")
-        self._config.read(self.config_file_path)
-
-    ''' QDA QUERIES'''
+        self._config.read(self.config_file_path)'
 
     def get_info(self):
         return self._config.get("DATA", "info")
